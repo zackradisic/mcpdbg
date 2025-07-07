@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "mcp-debugger": {
+      "command": "bun",
+      "args": ["run", "/Users/zackradisic/Code/mcpdbg/mcp-debugger/mcp-server/src/index.ts"],
+      "env": {}
+    }
+  }
+}

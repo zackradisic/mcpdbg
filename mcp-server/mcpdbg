@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+cd /Users/zackradisic/Code/mcpdbg/mcp-debugger/mcp-server;
+
+bun dev 2> out.log

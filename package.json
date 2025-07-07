@@ -1,0 +1,17 @@
+{
+  "name": "mcp-debugger",
+  "version": "0.0.1",
+  "description": "Bridge between MCP and VS Code debugger for CodeLLDB",
+  "private": true,
+  "scripts": {
+    "install:all": "npm run install:extension && npm run install:server",
+    "install:extension": "cd vscode-extension && npm install",
+    "install:server": "cd mcp-server && bun install",
+    "build:extension": "cd vscode-extension && npm run compile",
+    "dev:server": "cd mcp-server && bun run dev",
+    "start:server": "cd mcp-server && bun run start"
+  },
+  "keywords": ["mcp", "debugger", "vscode", "lldb", "codelldb"],
+  "author": "",
+  "license": "MIT"
+}
