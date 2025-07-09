@@ -2,17 +2,18 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import {
-  ExecuteLldbCommandRequest,
-  ExecuteLldbCommandResponse,
-  GetStackTraceRequest,
-  GetStackTraceResponse,
-  GetVariablesRequest,
-  GetVariablesResponse,
-  Event,
+  type ExecuteLldbCommandRequest,
+  type ExecuteLldbCommandResponse,
+  type GetStackTraceRequest,
+  type GetStackTraceResponse,
+  type GetVariablesRequest,
+  type GetVariablesResponse,
+  type Event,
   messageSchema,
 } from "./protocol.js";
 
 class MCPDebuggerServer {
+  private port: number;
   private mcpServer: McpServer;
   private ws: WebSocket | null = null;
   private responseHandlers = new Map<string, (response: any) => void>();
@@ -27,7 +28,8 @@ class MCPDebuggerServer {
     connectionPort: null as number | null,
   };
 
-  constructor() {
+  constructor(port: number) {
+    this.port = port;
     this.mcpServer = new McpServer(
       {
         name: "mcp-debugger",
@@ -149,7 +151,18 @@ class MCPDebuggerServer {
 
   private async sendRequest<T>(request: any): Promise<T> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error("Not connected to VS Code extension");
+      // Try to reconnect if not connected
+      if (this.debuggerState.connectionStatus !== "connecting") {
+        console.error("Not connected to debugger, attempting to reconnect...");
+        try {
+          await this.connectToExtension(this.port);
+          console.error("Reconnection successful");
+        } catch (error) {
+          throw new Error(`Not connected to VS Code extension and reconnection failed: ${error.message}`);
+        }
+      } else {
+        throw new Error("Connection to VS Code extension is still being established");
+      }
     }
 
     const id = Math.random().toString(36).substring(7);
@@ -175,57 +188,6 @@ class MCPDebuggerServer {
   }
 
   private setupTools() {
-    // Connect to debugger extension
-    this.mcpServer.registerTool(
-      "debugger_connect",
-      {
-        title: "Connect to Debugger Extension",
-        description:
-          "Connect to the VS Code debugger extension on a specific port. Ask the user for the port if not provided.",
-        inputSchema: {
-          port: z.number().describe("Port number to connect to"),
-        },
-      },
-      async ({ port }) => {
-        try {
-          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: "Already connected to debugger extension",
-                },
-              ],
-            };
-          }
-
-          await this.connectToExtension(port);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Successfully connected to debugger extension on port ${port}`,
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error: ${
-                  error instanceof Error
-                    ? error.message
-                    : "Failed to connect to debugger extension"
-                }`,
-              },
-            ],
-            isError: true,
-          };
-        }
-      }
-    );
-
     // Raw LLDB command execution
     this.mcpServer.registerTool(
       "debugger_executeLldbCommand",
@@ -499,8 +461,21 @@ class MCPDebuggerServer {
     const transport = new StdioServerTransport();
     await this.mcpServer.connect(transport);
     console.error("MCP Debugger Server running on stdio");
+    console.error(`Connecting to debugger extension on port ${this.port}...`);
+
+    try {
+      await this.connectToExtension(this.port);
+      console.error(`Successfully connected to debugger extension on port ${this.port}`);
+    } catch (error) {
+      console.error(`Failed to connect to debugger extension on port ${this.port}:`, error);
+      console.error("The server will continue running but debugger commands will fail until a connection is established.");
+    }
   }
 }
 
-const server = new MCPDebuggerServer();
+if (process.env.PORT === undefined) {
+  throw new Error("PORT environment variable is not set");
+}
+const port = parseInt(process.env.PORT, 10);
+const server = new MCPDebuggerServer(port);
 server.run().catch(console.error);
